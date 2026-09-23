@@ -1,63 +1,84 @@
-# Emergency Resource Map — Backend
+# Emergency Resource Map
 
-FastAPI backend for the Emergency Resource Map project.
+A location-based emergency resource discovery platform — find hospitals,
+police stations, fire services, shelters, IDP camps and other emergency
+resources on an interactive map, with search, category filtering, and
+"find near me" support.
 
-## Setup
+This covers the MVP from the project spec: interactive map, search,
+category filters, resource detail info, nearby-resource discovery via
+geolocation, and admin-authenticated resource management (create/edit/
+delete/verify).
 
+## Quick start (local development, two terminals)
+
+**Terminal 1 — backend:**
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env            # defaults to SQLite, no setup needed
+cp .env.example .env
+alembic upgrade head
+python -m scripts.create_admin youradmin yourpassword123   # first admin account
 uvicorn app.main:app --reload
 ```
+API docs: http://127.0.0.1:8000/docs
 
-Then open http://127.0.0.1:8000/docs for interactive API docs.
-
-## Switching to PostgreSQL
-
-Install Postgres, create a database, then edit `.env`:
-
+**Terminal 2 — frontend:**
+```bash
+cd frontend
+npm install
+cp .env.example .env
+npm run dev
 ```
-DATABASE_URL=postgresql://username:password@localhost:5432/emergency_resource_map
-```
+App: http://localhost:5173
 
-Restart the server — same code, no changes needed elsewhere. This works because
-`GUID` in `app/models.py` adapts the primary-key column type per database.
+Sign in with the admin account you created to add, edit, verify, or
+delete resources. Everyone (no sign-in needed) can search, filter, browse
+the map, and use "Find near me".
 
-## Project structure
+## Quick start (Docker)
 
-```
-app/
-  main.py          FastAPI app, CORS, startup
-  database.py      engine/session setup, reads DATABASE_URL
-  models.py        SQLAlchemy models (the Resource table)
-  schemas.py       Pydantic request/response shapes
-  crud.py          all DB queries live here
-  routers/
-    resources.py   the /api/resources endpoints
+```bash
+docker compose up --build
 ```
 
-## Endpoints implemented so far
+This starts Postgres, the backend (migrations run automatically on
+startup), and the frontend (served via nginx) together:
+- Frontend: http://localhost:3000
+- Backend: http://localhost:8000
 
-| Method | Path                   | Notes                                   |
-|--------|------------------------|------------------------------------------|
-| GET    | /api/health            | health check                             |
-| GET    | /api/resources         | list, with `?search=` and `?category=`   |
-| GET    | /api/resources/{id}    | get one                                  |
-| POST   | /api/resources         | create (not yet admin-only)              |
-| PUT    | /api/resources/{id}    | partial update                           |
-| DELETE | /api/resources/{id}    | delete                                   |
-| GET    | /api/resources/nearby  | `?latitude=&longitude=&radius_km=`       |
+Create the first admin account inside the running backend container:
+```bash
+docker compose exec backend python -m scripts.create_admin youradmin yourpassword123
+```
 
-All tested and confirmed working end-to-end (create, list, search, category
-filter, nearby-distance search).
+For a real deployment, change `JWT_SECRET_KEY` and the Postgres password
+in `docker-compose.yml` (or pass them via a `.env` file / your hosting
+provider's secrets), and set `VITE_API_BASE_URL` / `CORS_ORIGINS` to your
+real domains instead of `localhost`.
 
-## Not yet done (next phases per the roadmap)
+## What's built
 
-- Alembic migrations (tables currently auto-create on startup — fine for
-  now, but switch before the schema needs to evolve without losing data)
-- Admin auth — POST/PUT/DELETE are wide open right now, per spec they
-  should require an authenticated admin
-- Tests (pytest / FastAPI TestClient)
+**Backend** (`backend/`) — FastAPI + SQLAlchemy + Alembic + PostgreSQL
+(SQLite for local dev by default). Full resource CRUD, search, category
+filtering, haversine-based nearby search, JWT admin auth, 15 passing
+pytest tests. See `backend/README.md` for details.
+
+**Frontend** (`frontend/`) — React + TypeScript + Vite + Tailwind +
+React-Leaflet. Interactive map with per-category colored markers, resource
+list synced to the map, search + category filter, "find near me"
+(browser geolocation), admin login, and add/edit/delete/verify forms.
+Tested end-to-end in a real browser against the live backend — full flows
+(sign in, create, search, edit, verify, delete) all confirmed working.
+
+## What's not built yet (later phases per the roadmap)
+
+- Admin dashboard as a distinct view (admin actions currently live inline
+  in the main map/list UI — functionally complete, just not a separate page)
+- Automated frontend tests (backend has full pytest coverage; frontend was
+  verified via manual/scripted browser testing, not an automated test suite)
+- Production hosting/CI setup (Vercel/Netlify/Render/Railway) — the app
+  and Dockerfiles are ready for it, but no live deployment has been created
+- Seeded real-world resource data — currently empty until an admin adds
+  resources
